@@ -3,6 +3,8 @@ const markToSecs = (mark) => {
     return h * (60 * 60) + m * 60 + s;
 };
 let trialsResults = null;
+let menResults = [];
+let womenResults = [];
 async function loadResults(id) {
     trialsResults = await (await fetch("https://pgcs7vfn3jbtjibqmf7fgj6xym.appsync-api.eu-west-1.amazonaws.com/graphql", {
         headers: { "x-api-key": "da2-vdx45fhegvbb3jsy3audmvpk6e" },
@@ -158,16 +160,17 @@ query getCalendarCompetitionResults($competitionId: Int, $day: Int, $eventId: In
         }),
     })).json();
     console.log(trialsResults);
-    document.querySelector("#waiting").innerHTML = "Results loaded!";
+    const events = trialsResults.data.getCalendarCompetitionResults.eventTitles[0].events;
+    menResults = events.find((e) => e.gender === "M").races[0].results;
+    womenResults = events.find((e) => e.gender === "W").races[0].results;
+    document.querySelector("#waiting").innerHTML = `${menResults.length + womenResults.length} results loaded!`;
     document.querySelector("#process").style.display =
         "block";
 }
 function parseCSV(text) {
-    const events = trialsResults.data.getCalendarCompetitionResults.eventTitles[0].events;
-    const menResults = events.find((e) => e.gender === "M").races[0].results;
-    const womenResults = events.find((e) => e.gender === "W").races[0].results;
     const lines = text.split(/\r\n|\n/);
-    const lb = lines.map((line) => {
+    const lb = lines
+        .map((line) => {
         let score = 0;
         const cols = line.split(",");
         const menPicks = cols.slice(5, 15).map((p) => p.toLowerCase().trim());
@@ -211,7 +214,11 @@ function parseCSV(text) {
         const womensThird = cols[28];
         const diffs = [];
         for (const { results, winningGuess, thirdGuess } of [
-            { results: menResults, winningGuess: mensWinning, thirdGuess: mensThird },
+            {
+                results: menResults,
+                winningGuess: mensWinning,
+                thirdGuess: mensThird,
+            },
             {
                 results: womenResults,
                 winningGuess: womensWinning,
@@ -237,15 +244,16 @@ function parseCSV(text) {
         }
         const cumulativeWinningDifferential = diffs[0] + diffs[2];
         return { score, cumulativeWinningDifferential, email: cols[1] };
-    }).sort((a, b) => {
+    })
+        .sort((a, b) => {
         if (b.score === a.score)
-            return a.cumulativeWinningDifferential - b.cumulativeWinningDifferential;
+            return (a.cumulativeWinningDifferential - b.cumulativeWinningDifferential);
         return b.score - a.score;
     });
-    const lbOl = document.querySelector('#lb');
-    lbOl.innerHTML = '';
+    const lbOl = document.querySelector("#lb");
+    lbOl.innerHTML = "";
     for (const { email, score, cumulativeWinningDifferential } of lb) {
-        const newLi = document.createElement('li');
+        const newLi = document.createElement("li");
         newLi.innerHTML = `${email}: ${score} pts (${cumulativeWinningDifferential} cumulative winning differential)`;
         lbOl.appendChild(newLi);
     }
@@ -261,7 +269,7 @@ function handleFiles(files) {
     }
 }
 function processCSV() {
-    const fileInput = document.getElementById('csvFileInput');
+    const fileInput = document.getElementById("csvFileInput");
     const files = fileInput.files;
     if (files && files.length > 0) {
         handleFiles(files);
