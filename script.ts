@@ -194,14 +194,15 @@ function parseCSV(text: string): void {
   const lines = text.split(/\r\n|\n/);
   const lb = lines
     .map((line) => {
-      let score = 0;
       const cols = line.split(",");
       const menPicks = cols.slice(5, 15).map((p) => p.toLowerCase().trim());
       const womenPicks = cols.slice(15, 25).map((p) => p.toLowerCase().trim());
+      const genderPlaceScores: number[] = [];
       for (const { results, picks } of [
         { results: menResults, picks: menPicks },
         { results: womenResults, picks: womenPicks },
       ]) {
+        let genderPlaceScore = 0;
         for (let n = 1; n <= picks.length; n++) {
           let scoreDiffs: number[] = [];
           if (n === 1) scoreDiffs = [1, 2, 3, 5, 5, -1, -5];
@@ -213,20 +214,22 @@ function parseCSV(text: string): void {
               (res) => res.competitor.name.toLowerCase() === picks[n - 1]
             ) + 1;
           if (nthPlace === 0) nthPlace = Infinity;
-          if (nthPlace <= 10) score += scoreDiffs[0];
-          if (nthPlace <= 5) score += scoreDiffs[1];
-          if (nthPlace <= 3) score += scoreDiffs[2];
-          if (nthPlace <= 1) score += scoreDiffs[3];
-          if (nthPlace === n) score += scoreDiffs[4];
-          if (nthPlace > 10) score += scoreDiffs[5];
-          if (nthPlace > 25) score += scoreDiffs[6];
+          if (nthPlace <= 10) genderPlaceScore += scoreDiffs[0];
+          if (nthPlace <= 5) genderPlaceScore += scoreDiffs[1];
+          if (nthPlace <= 3) genderPlaceScore += scoreDiffs[2];
+          if (nthPlace <= 1) genderPlaceScore += scoreDiffs[3];
+          if (nthPlace === n) genderPlaceScore += scoreDiffs[4];
+          if (nthPlace > 10) genderPlaceScore += scoreDiffs[5];
+          if (nthPlace > 25) genderPlaceScore += scoreDiffs[6];
         }
+        genderPlaceScores.push(genderPlaceScore);
       }
       const mensWinning = cols[25];
       const mensThird = cols[26];
       const womensWinning = cols[27];
       const womensThird = cols[28];
       const diffs: number[] = [];
+      const genderTimeScores: number[] = [];
       for (const { results, winningGuess, thirdGuess } of [
         {
           results: menResults,
@@ -239,20 +242,31 @@ function parseCSV(text: string): void {
           thirdGuess: womensThird,
         },
       ]) {
+        let genderTimeScore = 0;
         for (const diffSecs of [
           Math.abs(markToSecs(results[0].mark) - markToSecs(winningGuess)),
           Math.abs(markToSecs(results[2].mark) - markToSecs(thirdGuess)),
         ]) {
           diffs.push(diffSecs);
-          if (diffSecs <= 120) score += 1;
-          if (diffSecs <= 60) score += 1;
-          if (diffSecs <= 30) score += 1;
-          if (diffSecs <= 10) score += 1;
-          if (diffSecs === 0) score += 1;
+          if (diffSecs <= 120) genderTimeScore += 1;
+          if (diffSecs <= 60) genderTimeScore += 1;
+          if (diffSecs <= 30) genderTimeScore += 1;
+          if (diffSecs <= 10) genderTimeScore += 1;
+          if (diffSecs === 0) genderTimeScore += 1;
         }
+        genderTimeScores.push(genderTimeScore);
       }
       const cumulativeWinningDifferential = diffs[0] + diffs[2];
-      return { score, cumulativeWinningDifferential, email: cols[1] };
+      return {
+        genderPlaceScores,
+        genderTimeScores,
+        menScore: genderPlaceScores[0] + genderTimeScores[0],
+        womenScore: genderPlaceScores[1] + genderTimeScores[1],
+        score: [...genderPlaceScores, ...genderTimeScores].reduce((acc, x) => acc + x, 0),
+        cumulativeWinningDifferential,
+        email: cols[1],
+        team: cols[4],
+      };
     })
     .sort((a, b) => {
       if (b.score === a.score)
@@ -263,11 +277,15 @@ function parseCSV(text: string): void {
     });
   const lbOl = document.querySelector("#lb");
   lbOl.innerHTML = "";
-  for (const { email, score, cumulativeWinningDifferential } of lb) {
+  let csvOut = Object.keys(lb[0]).join(',') + '\n';
+  for (const lbItem of lb) {
+    const { genderPlaceScores, genderTimeScores, menScore, womenScore, team, score, cumulativeWinningDifferential } = lbItem;
     const newLi = document.createElement("li");
-    newLi.innerHTML = `${email}: ${score} pts (${cumulativeWinningDifferential} cumulative winning differential)`;
+    newLi.innerHTML = `${team}: ${score} pts (${genderPlaceScores[0]} + ${genderTimeScores[0]} = ${menScore} men's, ${genderPlaceScores[1]} + ${genderTimeScores[1]} = ${womenScore} women's) <small>(${cumulativeWinningDifferential} cumulative winning differential)</small>`;
     lbOl.appendChild(newLi);
+    csvOut += Object.values(lbItem).join(',') + '\n';
   }
+  document.querySelector('#out').innerHTML = csvOut;
 }
 
 function handleFiles(files: FileList | null): void {
