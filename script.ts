@@ -204,6 +204,7 @@ function parseCSV(text: string): void {
       ]) {
         let genderPlaceScore = 0;
         for (let n = 1; n <= picks.length; n++) {
+          const oldGpc = genderPlaceScore;
           let scoreDiffs: number[] = [];
           if (n === 1) scoreDiffs = [1, 2, 3, 5, 5, -1, -5];
           else if ([2, 3].includes(n)) scoreDiffs = [1, 2, 3, 3, 3, -1, -3];
@@ -221,6 +222,7 @@ function parseCSV(text: string): void {
           if (nthPlace === n) genderPlaceScore += scoreDiffs[4];
           if (nthPlace > 10) genderPlaceScore += scoreDiffs[5];
           if (nthPlace > 25) genderPlaceScore += scoreDiffs[6];
+          console.log(cols[4], picks[n-1], genderPlaceScore - oldGpc);
         }
         genderPlaceScores.push(genderPlaceScore);
       }
